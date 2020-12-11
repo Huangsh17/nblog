@@ -11,7 +11,7 @@ func SendEmail(msg string)  {
 	m.SetBody("text/html", msg)     //邮件内容
 	m.Attach("C:\\Users\\DM\\Desktop\\微信图片_20201023140433.png")       //邮件附件
 
-	d := gomail.NewDialer("smtp.qq.com", 587, "1132771621@qq.com", "foychtxjtxijffcd")
+	d := gomail.NewDialer("smtp.qq.com", 587, "1132771621@qq.com", "")
 	//邮件发送服务器信息,使用授权码而非密码
 	if err := d.DialAndSend(m); err != nil {
 		panic(err)
