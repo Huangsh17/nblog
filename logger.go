@@ -1,41 +1,47 @@
-// 该模块封装了zap框架，提供日志层面的基本配置，包括堆栈，日志切割，备份，多实例化日志
+// 该模块封装了zap框架，提供日志层面的基本配置，包括日志切割，备份，多实例化日志
 // 使用方法：直接调用NewLogger方法，生成logger对象，传入serverName(config配置的serverName（必须和serverName名字一样，不然会生成对象为nil）)
 // 使用goland的grep-console插件输出不同级别颜色的日志
-package nblog
+package util
 
 import (
+	"context"
+	"errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"os"
+	"x4c-mgpeap-websocket/config"
 )
 
 var (
 	// 多实例服务配置,配置日志基础配置，比如等级，服务名称，保存路径等等
-	LogConfigs []LogBasicsConfig
+	LogConfigs []config.LogBasicsConfig
 	// 日志内容基础配置
 	EncoderConfig zapcore.EncoderConfig
 )
 
+var Sugar *zap.SugaredLogger
+
 func init() {
 	encoderConfig := zapcore.EncoderConfig{
-		TimeKey:        "time",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "msg",
-		StacktraceKey:  "stacktrace",
-		FunctionKey:    "function",
+		TimeKey:       "time",
+		LevelKey:      "level",
+		NameKey:       "logger",
+		CallerKey:     "caller",
+		MessageKey:    "msg",
+		StacktraceKey: "stacktrace",
+		//FunctionKey:    "function",
 		LineEnding:     zapcore.DefaultLineEnding,
 		EncodeLevel:    zapcore.LowercaseLevelEncoder, // 小写编码器
 		EncodeTime:     zapcore.ISO8601TimeEncoder,    // ISO8601 UTC 时间格式
 		EncodeDuration: zapcore.SecondsDurationEncoder,
 		EncodeCaller:   zapcore.FullCallerEncoder, // 全路径编码器
 	}
+	LogConfigs = config.Logging
 	EncoderConfig = encoderConfig
 }
 
-func InitLogger(logConfig LogBasicsConfig) *zap.SugaredLogger {
+func InitLogger(logConfig config.LogBasicsConfig) *zap.SugaredLogger {
 	// 设置日志级别
 	atomicLevel := zap.NewAtomicLevel()
 	switch logConfig.Level {
@@ -85,3 +91,33 @@ func InitLogger(logConfig LogBasicsConfig) *zap.SugaredLogger {
 	return sugar
 }
 
+// 构造logger对象
+func NewLogger(serverName string) (*zap.SugaredLogger, error) {
+	for _, logConfig := range LogConfigs {
+		if logConfig.ServerName == serverName {
+			return InitLogger(logConfig), nil
+		}
+	}
+	return nil, errors.New("serverName和你配置的不一样，请用config.go里面配置的serverName")
+}
+
+// 默认logger对象
+func DefaultLogger() *zap.SugaredLogger {
+	level := os.Getenv("LogLevel")
+	logConfig := config.LogBasicsConfig{
+		ServerName: "default",
+		Level:      level,
+		OutPath:    "default.log",
+		Encoding:   "json",
+		OutputType: 2,
+	}
+	return InitLogger(logConfig)
+}
+
+// 日志业务流追踪，在需要追踪这个业务流开始前调用，并写道日志里面，比如：
+//ctx := TraceLogger()
+//util.Sugar.Infow("购物流程","traceId",ctx.Value("traceId"))
+func TraceLogger() context.Context {
+	ctx := context.WithValue(context.Background(), "traceId", GenUUID())
+	return ctx
+}
